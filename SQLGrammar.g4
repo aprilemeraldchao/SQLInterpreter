@@ -1,3 +1,4 @@
+grammar SQLGrammar;
 statements: statement+ EOF;
 
 statement: query WS? ‘;’;
