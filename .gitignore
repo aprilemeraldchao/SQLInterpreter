@@ -1,5 +1,2 @@
-.antlr/*
 SQLGrammar*.java
 SQLGrammar*.class
-SQLGrammar*.interp
-SQLGrammar*.tokens
