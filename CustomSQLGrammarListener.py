@@ -44,7 +44,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
     # Enter a parse tree produced by SQLGrammarParser#statement.
     def enterStatement(self, ctx: SQLGrammarParser.StatementContext):
-        pass
+        print(">", ctx.getText()[:-1])
 
     # Exit a parse tree produced by SQLGrammarParser#statement.
     def exitStatement(self, ctx: SQLGrammarParser.StatementContext):
@@ -71,7 +71,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
             colType = "string" if colDef.data_type().STRING() else "int"
             cols.append((colName, colType))
         self.tables[tableName] = self.Table(tableName, cols)
-        print(">Created", tableName, "Table\n")
+
 
     # Enter a parse tree produced by SQLGrammarParser#drop.
     def enterDrop(self, ctx: SQLGrammarParser.DropContext):
@@ -100,7 +100,6 @@ class CustomSQLGrammarListener(SQLGrammarListener):
             values.append(val)
         # TBD check if values match col defs
         self.tables[tableName].insert(values)
-        print(">Inserted", "(" + ", ".join(values) + ")", "into", tableName, "Table")
 
     # Enter a parse tree produced by SQLGrammarParser#show.
     def enterShow(self, ctx: SQLGrammarParser.ShowContext):
@@ -108,7 +107,6 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
     # Exit a parse tree produced by SQLGrammarParser#show.
     def exitShow(self, ctx: SQLGrammarParser.ShowContext):
-        print("\n>Showing tables")
         if len(self.tables) == 0:
             print("No tables")
             print()
@@ -138,7 +136,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
         3. SELECT col1, col2 FROM table_name WHERE col1=value
         '''
 
-        print(">Select query for", table_name) # working
+
 
         # got the table name
         # Now, want the column names from the select query
@@ -158,7 +156,8 @@ class CustomSQLGrammarListener(SQLGrammarListener):
         '''
 
         # print the column names in the query
-        x = "\t".join([column for column in query_column_names])
+        x = "Query columns: "
+        x += "\t".join([column for column in query_column_names])
         print(x) # column names being printed
 
         # need to get the data for these query_column_names

@@ -6,6 +6,7 @@ from CustomSQLGrammarListener import CustomSQLGrammarListener
 
 
 def main():
+    """
     input = InputStream(
         '''
         CREATE TABLE table_1 (col_1 int, col_2 string, col_3 string);
@@ -17,7 +18,11 @@ def main():
         SELECT * FROM table_1 WHERE col_1=223;
         '''
     )
-    lexer = SQLGrammarLexer(input)
+    """
+
+    f = open("input.txt", "r")
+    input_text = InputStream(f.read())
+    lexer = SQLGrammarLexer(input_text)
     stream = CommonTokenStream(lexer)
     parser = SQLGrammarParser(stream)
     tree = parser.statements()
