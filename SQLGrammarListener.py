@@ -1,4 +1,4 @@
-# Generated from SQLGrammar.g4 by ANTLR 4.9
+# Generated from SQLGrammar.g4 by ANTLR 4.9.2
 from antlr4 import *
 if __name__ is not None and "." in __name__:
     from .SQLGrammarParser import SQLGrammarParser
@@ -98,12 +98,12 @@ class SQLGrammarListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SQLGrammarParser#type.
-    def enterType(self, ctx:SQLGrammarParser.TypeContext):
+    # Enter a parse tree produced by SQLGrammarParser#data_type.
+    def enterData_type(self, ctx:SQLGrammarParser.Data_typeContext):
         pass
 
-    # Exit a parse tree produced by SQLGrammarParser#type.
-    def exitType(self, ctx:SQLGrammarParser.TypeContext):
+    # Exit a parse tree produced by SQLGrammarParser#data_type.
+    def exitData_type(self, ctx:SQLGrammarParser.Data_typeContext):
         pass
 
 

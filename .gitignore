@@ -2,3 +2,4 @@ SQLGrammar*.java
 SQLGrammar*.class
 venv
 .idea
+.DS_Store

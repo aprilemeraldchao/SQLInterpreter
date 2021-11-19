@@ -1,7 +1,7 @@
 grammar SQLGrammar;
 
 statements: statement+ EOF;
-statement: query WS? ';' WS;
+statement: WS? query WS? ';' WS;
 query: create | drop | insert | show | select;
 
 create:
@@ -19,9 +19,9 @@ select:
 		WS WHERE WS NAME WS? '=' WS? value
 	)?;
 
-column_definition: WS? NAME WS type WS?;
+column_definition: WS? NAME WS data_type WS?;
 columns: NAME (WS? ',' WS? NAME)* | STAR;
-type: STRING | INT;
+data_type: STRING | INT;
 value: STRING_VALUE | INT_VALUE;
 
 CREATE: C R E A T E;

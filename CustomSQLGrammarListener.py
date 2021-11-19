@@ -13,7 +13,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
         def __init__(self, name, cols):
             self.name = name
             self.colDefs = cols  # array filled with tuples, which are of size=2 (colName, colType)
-            self.rows = []  # contains arrays of same size, each with same number of tuples
+            self.rows = []  # contains arrays of same size, each with same number of elements
 
         def insert(self, values):
             self.rows.append(values)
@@ -68,7 +68,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
         cols = []
         for colDef in ctx.column_definition():
             colName = colDef.NAME().getText()
-            colType = "string" if colDef.type().STRING() else "int"
+            colType = "string" if colDef.data_type().STRING() else "int"
             cols.append((colName, colType))
         self.tables[tableName] = self.Table(tableName, cols)
         print(">Created", tableName, "Table\n")
@@ -125,6 +125,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
         # working fine
         table_column_names = [] # this'd stores the column names for case 3 as well
+        # this array will always have 2 items: 1. table_name, 2. filter_column
         for name in ctx.NAME():
             table_column_names.append(name)
 
@@ -133,7 +134,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
         '''
         3 cases: 
         1. SELECT col1, col2, ...
-        2. SELECT * ... ==> if len(column_names) == 1 and 
+        2. SELECT * ... ==> if len(query_column_names) == 1 and 
         3. SELECT col1, col2 FROM table_name WHERE col1=value
         '''
 
@@ -141,25 +142,26 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
         # got the table name
         # Now, want the column names from the select query
-        column_names = []
+        query_column_names = []
         if ctx.columns().NAME():
             for name in ctx.columns().NAME():
                 col_name = name.getText()
-                column_names.append(col_name)
+                query_column_names.append(col_name)
         else:
-            column_names.append("*")
+            query_column_names.append(ctx.columns().STAR().getText())
+            # query_column_names.append("*")
 
         '''
         for name in ctx.columns().NAME():
             col_name = name.getText()
-            column_names.append(col_name)
+            query_column_names.append(col_name)
         '''
 
         # print the column names in the query
-        x = "\t".join([column for column in column_names])
+        x = "\t".join([column for column in query_column_names])
         print(x) # column names being printed
 
-        # need to get the data for these column_names
+        # need to get the data for these query_column_names
         table_object = self.tables[table_name.getText()]
 
         # find the tuple indices of the column names given in the colDefs array
@@ -167,62 +169,42 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
         '''
         Case #1  SELECT col1, col2, ...
-        This means that the column_names is not size=1 (i.e., it's not just a star), 
+        This means that the query_column_names is not size=1 (i.e., it's not just a star), 
         AND the table_column_names is size=1 (i.e., there is not a WHERE clause at the end)
         '''
-        if len(table_column_names) == 1 and len(column_names) != 1:
-            col_indices = []
-            index_1 = 0
-            index_2 = 0
-            for (c_name, c_type) in table_object.colDefs:
-                if index_2 < len(column_names) and c_name == column_names[index_2]:
-                    col_indices.append(index_1)
-                    index_1 += 1
-                    index_2 += 1
+
+        col_indices = []
+        where_index = None
+
+        query_col_index = 0
+        for table_col_index, (c_name, c_type) in enumerate(table_object.colDefs):
+            if query_column_names[0] == '*' or (query_col_index < len(query_column_names) and c_name == query_column_names[query_col_index]):
+                col_indices.append(table_col_index)
+                query_col_index += 1
+
+            if len(table_column_names) > 1 and c_name == table_column_names[1].getText():
+                where_index = table_col_index
+
+
+        # use the indices in col_indices to access specific tuple in arrays of self.rows
+        for row in table_object.rows:
+            # check if there's a where clause, then check if where clause is true
+            if len(table_column_names) > 1:
+                if ctx.value().STRING_VALUE():
+                    value = ctx.value().STRING_VALUE().getText()
                 else:
-                    index_1 += 1
-                    index_2 += 1
+                    value = ctx.value().INT_VALUE().getText()
 
-            # use the indices in col_indices to access specific tuple in arrays of self.rows
-            for row in table_object.rows:
-                x = ""
-                for index in col_indices:
-                    x += row[index] + '\t'
-                print(x)   # specific row data print working
+                if row[where_index] != value:
+                    continue
 
-        elif len(table_column_names) == 1 and len(column_names) == 1 : # just a STAR as a column selection
-            '''
-            Case #2 ==> SELECT * ...
-            just print the whole table for this one
-            '''
-            print(table_object)
-
-        else:
-            '''
-            Case #3 ==> SELECT col1, col2, FROM table_name WHERE ...
-            just print the whole table for this one
-            '''
-            print("WHERE clause in the query")
-            # filter out the rows where the selected the columns have the data
-            # To do:
-            # 1. get the index=1's value in table_column_names ==> that's the column name for which
-            # WHERE clause is getting applied
-            # 2. get the index of the column from colDefs
-            # 3. then use the index from step 2 in each row of self.rows to check if the values is matching
-
-            # step 1
-            filter_column_name = table_column_names[1]
-            print("filter_column_name:", filter_column_name)
+            x = ""
+            for index in col_indices:
+                x += row[index] + '\t'
+            print(x)   # specific row data print working
 
 
-            target_index = 0
-            for (c_name, c_type) in table_object.colDefs:
-                if c_name == filter_column_name:
-                    break
-                else:
-                    target_index += 1
 
-            print(target_index)
 
 
         print()
@@ -247,12 +229,12 @@ class CustomSQLGrammarListener(SQLGrammarListener):
     def exitColumns(self, ctx: SQLGrammarParser.ColumnsContext):
         pass
 
-    # Enter a parse tree produced by SQLGrammarParser#type.
-    def enterType(self, ctx: SQLGrammarParser.TypeContext):
+    # Enter a parse tree produced by SQLGrammarParser#data_type.
+    def enterData_type(self, ctx: SQLGrammarParser.Data_typeContext):
         pass
 
-    # Exit a parse tree produced by SQLGrammarParser#type.
-    def exitType(self, ctx: SQLGrammarParser.TypeContext):
+    # Exit a parse tree produced by SQLGrammarParser#data_type.
+    def exitData_type(self, ctx: SQLGrammarParser.Data_typeContext):
         pass
 
     # Enter a parse tree produced by SQLGrammarParser#value.
