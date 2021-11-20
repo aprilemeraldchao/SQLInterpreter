@@ -9,6 +9,7 @@ INSERT INTO birds VALUES ('robin', 10);
 INSERT INTO birds VALUES ('pigeon', 10);
 INSERT INTO birds VALUES ('crow', 145);
 INSERT INTO birds VALUES ('owl', 23);
+INSERT INTO birds VALUES ('owl', 23);
 INSERT INTO birds VALUES ('owl', 23, 0);
 INSERT INTO birds VALUES (255, 'owl');
 

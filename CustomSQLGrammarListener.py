@@ -47,6 +47,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
                     numalign="left",
                 )
             )
+            print(f"selected {len(display_rows)} row(s)")
 
         def __str__(self):
             toStr = "Table: " + self.name + "\n"
@@ -66,7 +67,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
     # Enter a parse tree produced by SQLGrammarParser#statement.
     def enterStatement(self, ctx: SQLGrammarParser.StatementContext):
-        print(">", ctx.getText()[:-1])
+        print(f"\033[96m>{ctx.getText()[:-1].strip()}\033[0m")
 
     # Exit a parse tree produced by SQLGrammarParser#create.
     def exitCreate(self, ctx: SQLGrammarParser.CreateContext):
@@ -75,7 +76,9 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
         # check if table name already exists
         if table_name in self.tables:
-            self.printError(f"table name '{table_name}' already exists")
+            self.printError(
+                f"CREATE failed because table name '{table_name}' already exists"
+            )
             return
 
         # get column definitions from query
@@ -87,7 +90,9 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
             # check if column name already exists
             if col_name in col_names:
-                self.printError(f"column name '{col_name}' already used")
+                self.printError(
+                    f"CREATE failed because column name '{col_name}' already used"
+                )
                 return
 
             col_type = "string" if col_def.data_type().STRING() else "int"
@@ -104,7 +109,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
         # check if table exists
         if table_name not in self.tables:
-            self.printError(f"table '{table_name}' doesn't exist")
+            self.printError(f"DROP failed because table '{table_name}' doesn't exist")
             return
 
         # remove table from tables dictionary
@@ -117,13 +122,13 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
         # check if table exists
         if table_name not in self.tables:
-            self.printError(f"table '{table_name}' doesn't exist")
+            self.printError(f"INSERT failed because table '{table_name}' doesn't exist")
             return
 
         # check if number of columns match
         if len(self.tables[table_name].col_defs) != len(ctx.value()):
             self.printError(
-                f"number of columns don't match (table '{table_name}' is expecting {len(self.tables[table_name].col_defs)} columns)"
+                f"INSERT failed because number of columns don't match (table '{table_name}' is expecting {len(self.tables[table_name].col_defs)} columns)"
             )
             return
 
@@ -143,7 +148,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
                 )
             else:
                 self.printError(
-                    f"table {table_name}'s column '{cur_col_def[0]}' must be of type {cur_col_def[1]}"
+                    f"INSERT failed because table {table_name}'s column '{cur_col_def[0]}' must be of type {cur_col_def[1]}"
                 )
                 return
 
@@ -171,7 +176,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
         # check if table exists
         if table_name not in self.tables:
-            self.printError(f"table '{table_name}' doesn't exist")
+            self.printError(f"SELECT failed because table '{table_name}' doesn't exist")
             return
 
         # get query column names from query
@@ -218,7 +223,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
         # check if found all query columns
         if query_col_index < len(query_column_names):
             self.printError(
-                f"table '{table_name}' doesn't have the column '{query_column_names[query_col_index]}'"
+                f"SELECT failed because table '{table_name}' doesn't have the column '{query_column_names[query_col_index]}'"
             )
             return
 
@@ -236,7 +241,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
                 )
             else:
                 self.printError(
-                    f"WHERE clause column '{filter_col_def[0]}' must be of type {filter_col_def[1]}"
+                    f"SELECT failed because column '{filter_col_def[0]}' (in WHERE clause) must be of type {filter_col_def[1]}"
                 )
                 return
 
