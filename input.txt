@@ -19,6 +19,7 @@ SELECT * FROM birds WHERE count=0;
 SELECT count FROM birds WHERE type='owl';
 SELECT count FROM birds WHERE type=123;
 SELECT number FROM birds WHERE type='owl';
+SELECT count,type FROM birds;
 
 SELECT * FROM dinosaurs;
 INSERT INTO dinosaurs VALUES ('t-rex', 10);

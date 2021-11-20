@@ -16,6 +16,9 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
             # array filled with tuples, which are of size=2 (col_name, col_type)
             self.col_defs = cols
+            self.col_indices = {
+                col_name: col_index for col_index, (col_name, _) in enumerate(cols)
+            }
 
             # contains arrays of same size (the number of columns in this array)
             self.rows = []
@@ -24,7 +27,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
             # row = an array of column values
             self.rows.append(row)
 
-        def display(self, col_indices, filter_index, filter_val):
+        def display(self, query_col_names, filter_index, filter_val):
             # contains all rows that should be displayed
             display_rows = []
             for row in self.rows:
@@ -33,10 +36,16 @@ class CustomSQLGrammarListener(SQLGrammarListener):
                     continue
 
                 # add only the queried columns
-                display_rows.append([row[index] for index in col_indices])
+                display_rows.append([])
+                for col_name in query_col_names:
+                    # check if column name exists in the table
+                    if col_name in self.col_indices:
+                        display_rows[-1].append(row[self.col_indices[col_name]])
+                    else:
+                        return f"SELECT failed because table '{self.name}' doesn't have the column '{col_name}'"
 
             # get column headers
-            display_headers = [self.col_defs[index][0] for index in col_indices]
+            display_headers = query_col_names
 
             # print queried columns and rows with tabulate module
             print(
@@ -186,46 +195,26 @@ class CustomSQLGrammarListener(SQLGrammarListener):
             for col_name in ctx.columns().NAME():
                 query_column_names.append(col_name.getText())
         else:
-            # else a '*' was supplied so add that
-            query_column_names.append(ctx.columns().STAR().getText())
+            # else a '*' was supplied so add all column names
+            query_column_names = self.tables[table_name].col_indices.keys()
 
         # get the table object for this query
         table_object = self.tables[table_name]
 
         # initialize variables for displaying the query
-        col_indices = []  # indices of the columns to display
         filter_index = -1  # index of the column from the WHERE clause
         filter_val = None  # expected value from the WHERE clause
 
         # populate the column indices and set the filter index
-        query_col_index = 0  # index of the current query column we are looking for in the table's columns
 
         # loop over all column definitions in the table
         for table_col_index, (c_name, _) in enumerate(table_object.col_defs):
-            # if the query is for all columns or we found the query column
-            if query_column_names[0] == "*" or (
-                query_col_index < len(query_column_names)
-                and c_name == query_column_names[query_col_index]
-            ):
-                # add the index of the column to display
-                col_indices.append(table_col_index)
-
-                # increment to the next query column to look for
-                query_col_index += 1
-
             # if we found the column from the WHERE clause, set the filter index
             if (
                 len(table_column_names) > 1
                 and c_name == table_column_names[1].getText()
             ):
                 filter_index = table_col_index
-
-        # check if found all query columns
-        if query_col_index < len(query_column_names):
-            self.printError(
-                f"SELECT failed because table '{table_name}' doesn't have the column '{query_column_names[query_col_index]}'"
-            )
-            return
 
         # if the filter index was set
         if filter_index >= 0:
@@ -246,7 +235,10 @@ class CustomSQLGrammarListener(SQLGrammarListener):
                 return
 
         # display the filtered table
-        table_object.display(col_indices, filter_index, filter_val)
+        err = table_object.display(query_column_names, filter_index, filter_val)
+        if err:
+            self.printError(err)
+            return
         print()
 
 
