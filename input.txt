@@ -1,18 +1,29 @@
 SHOW TABLES;
 
 CREATE TABLE birds (type string, count int);
+CREATE TABLE birds (type string, count int);
+
 SHOW TABLES;
 
 INSERT INTO birds VALUES ('robin', 10);
 INSERT INTO birds VALUES ('pigeon', 10);
 INSERT INTO birds VALUES ('crow', 145);
 INSERT INTO birds VALUES ('owl', 23);
+INSERT INTO birds VALUES ('owl', 23, 0);
+INSERT INTO birds VALUES (255, 'owl');
 
 SELECT * FROM birds;
 SELECT type FROM birds;
-SELECT * FROM birds WHERE count=10;
+SELECT * FROM birds WHERE count=0;
 SELECT count FROM birds WHERE type='owl';
+SELECT count FROM birds WHERE type=123;
+SELECT number FROM birds WHERE type='owl';
 
+SELECT * FROM dinosaurs;
+INSERT INTO dinosaurs VALUES ('t-rex', 10);
+DROP TABLE dinosaurs;
+
+CREATE TABLE dinosaurs (type string, type int);
 CREATE TABLE dinosaurs (type string, count int);
 SHOW TABLES;
 

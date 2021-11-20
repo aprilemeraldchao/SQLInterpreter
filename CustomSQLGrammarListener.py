@@ -61,85 +61,94 @@ class CustomSQLGrammarListener(SQLGrammarListener):
     def __init__(self):
         self.tables = {}
 
-    # Enter a parse tree produced by SQLGrammarParser#statements.
-    def enterStatements(self, ctx: SQLGrammarParser.StatementsContext):
-        pass
-
-    # Exit a parse tree produced by SQLGrammarParser#statements.
-    def exitStatements(self, ctx: SQLGrammarParser.StatementsContext):
-        pass
+    def printError(self, msg):
+        print(f"\033[91mRuntime Error: {msg}\033[0m\n")
 
     # Enter a parse tree produced by SQLGrammarParser#statement.
     def enterStatement(self, ctx: SQLGrammarParser.StatementContext):
         print(">", ctx.getText()[:-1])
-
-    # Exit a parse tree produced by SQLGrammarParser#statement.
-    def exitStatement(self, ctx: SQLGrammarParser.StatementContext):
-        pass
-
-    # Enter a parse tree produced by SQLGrammarParser#query.
-    def enterQuery(self, ctx: SQLGrammarParser.QueryContext):
-        pass
-
-    # Exit a parse tree produced by SQLGrammarParser#query.
-    def exitQuery(self, ctx: SQLGrammarParser.QueryContext):
-        pass
-
-    # Enter a parse tree produced by SQLGrammarParser#create.
-    def enterCreate(self, ctx: SQLGrammarParser.CreateContext):
-        pass
 
     # Exit a parse tree produced by SQLGrammarParser#create.
     def exitCreate(self, ctx: SQLGrammarParser.CreateContext):
         # get table name from query
         table_name = ctx.NAME().getText()
 
+        # check if table name already exists
+        if table_name in self.tables:
+            self.printError(f"table name '{table_name}' already exists")
+            return
+
         # get column definitions from query
         cols = []
+        col_names = set()
+
         for col_def in ctx.column_definition():
             col_name = col_def.NAME().getText()
+
+            # check if column name already exists
+            if col_name in col_names:
+                self.printError(f"column name '{col_name}' already used")
+                return
+
             col_type = "string" if col_def.data_type().STRING() else "int"
             cols.append((col_name, col_type))
+            col_names.add(col_name)
 
         # create and add table to tables dictionary
         self.tables[table_name] = self.Table(table_name, cols)
-
-    # Enter a parse tree produced by SQLGrammarParser#drop.
-    def enterDrop(self, ctx: SQLGrammarParser.DropContext):
-        pass
 
     # Exit a parse tree produced by SQLGrammarParser#drop.
     def exitDrop(self, ctx: SQLGrammarParser.DropContext):
         # get table name from query
         table_name = ctx.NAME().getText()
 
+        # check if table exists
+        if table_name not in self.tables:
+            self.printError(f"table '{table_name}' doesn't exist")
+            return
+
         # remove table from tables dictionary
         self.tables.pop(table_name)
-
-    # Enter a parse tree produced by SQLGrammarParser#insert.
-    def enterInsert(self, ctx: SQLGrammarParser.InsertContext):
-        pass
 
     # Exit a parse tree produced by SQLGrammarParser#insert.
     def exitInsert(self, ctx: SQLGrammarParser.InsertContext):
         # get table name from query
         table_name = ctx.NAME().getText()
 
+        # check if table exists
+        if table_name not in self.tables:
+            self.printError(f"table '{table_name}' doesn't exist")
+            return
+
+        # check if number of columns match
+        if len(self.tables[table_name].col_defs) != len(ctx.value()):
+            self.printError(
+                f"number of columns don't match (table '{table_name}' is expecting {len(self.tables[table_name].col_defs)} columns)"
+            )
+            return
+
         # get row values
         row = []
-        for value in ctx.value():
-            row.append(
-                value.STRING_VALUE().getText()
-                if value.STRING_VALUE()
-                else value.INT_VALUE().getText()
-            )
+        for i, value in enumerate(ctx.value()):
+            # check if column type is correct
+            cur_col_def = self.tables[table_name].col_defs[i]
+            if (value.STRING_VALUE() and cur_col_def[1] == "string") or (
+                value.INT_VALUE() and cur_col_def[1] == "int"
+            ):
+                # if value type matches column type, add the value to the row
+                row.append(
+                    value.STRING_VALUE().getText()
+                    if value.STRING_VALUE()
+                    else value.INT_VALUE().getText()
+                )
+            else:
+                self.printError(
+                    f"table {table_name}'s column '{cur_col_def[0]}' must be of type {cur_col_def[1]}"
+                )
+                return
 
         # insert the row into the table
         self.tables[table_name].insert(row)
-
-    # Enter a parse tree produced by SQLGrammarParser#show.
-    def enterShow(self, ctx: SQLGrammarParser.ShowContext):
-        pass
 
     # Exit a parse tree produced by SQLGrammarParser#show.
     def exitShow(self, ctx: SQLGrammarParser.ShowContext):
@@ -152,17 +161,18 @@ class CustomSQLGrammarListener(SQLGrammarListener):
             print(table)
             print()
 
-    # Enter a parse tree produced by SQLGrammarParser#select.
-    def enterSelect(self, ctx: SQLGrammarParser.SelectContext):
-        pass
-
     # Exit a parse tree produced by SQLGrammarParser#select.
     def exitSelect(self, ctx: SQLGrammarParser.SelectContext):
         # this array will always have at most 2 items: 1. table_name, 2. filter_column
         table_column_names = ctx.NAME()
 
         # get table name from query
-        table_name = table_column_names[0]
+        table_name = table_column_names[0].getText()
+
+        # check if table exists
+        if table_name not in self.tables:
+            self.printError(f"table '{table_name}' doesn't exist")
+            return
 
         # get query column names from query
         query_column_names = []
@@ -175,7 +185,7 @@ class CustomSQLGrammarListener(SQLGrammarListener):
             query_column_names.append(ctx.columns().STAR().getText())
 
         # get the table object for this query
-        table_object = self.tables[table_name.getText()]
+        table_object = self.tables[table_name]
 
         # initialize variables for displaying the query
         col_indices = []  # indices of the columns to display
@@ -205,50 +215,34 @@ class CustomSQLGrammarListener(SQLGrammarListener):
             ):
                 filter_index = table_col_index
 
+        # check if found all query columns
+        if query_col_index < len(query_column_names):
+            self.printError(
+                f"table '{table_name}' doesn't have the column '{query_column_names[query_col_index]}'"
+            )
+            return
+
         # if the filter index was set
         if filter_index >= 0:
-            # get the expected value
-            filter_val = (
-                ctx.value().STRING_VALUE().getText()
-                if ctx.value().STRING_VALUE()
-                else ctx.value().INT_VALUE().getText()
-            )
+            # check if column type is correct
+            filter_col_def = self.tables[table_name].col_defs[filter_index]
+            if (ctx.value().STRING_VALUE() and filter_col_def[1] == "string") or (
+                ctx.value().INT_VALUE() and filter_col_def[1] == "int"
+            ):
+                filter_val = (
+                    ctx.value().STRING_VALUE().getText()
+                    if ctx.value().STRING_VALUE()
+                    else ctx.value().INT_VALUE().getText()
+                )
+            else:
+                self.printError(
+                    f"WHERE clause column '{filter_col_def[0]}' must be of type {filter_col_def[1]}"
+                )
+                return
 
         # display the filtered table
         table_object.display(col_indices, filter_index, filter_val)
         print()
-
-    # Enter a parse tree produced by SQLGrammarParser#column_definition.
-    def enterColumn_definition(self, ctx: SQLGrammarParser.Column_definitionContext):
-        pass
-
-    # Exit a parse tree produced by SQLGrammarParser#column_definition.
-    def exitColumn_definition(self, ctx: SQLGrammarParser.Column_definitionContext):
-        pass
-
-    # Enter a parse tree produced by SQLGrammarParser#columns.
-    def enterColumns(self, ctx: SQLGrammarParser.ColumnsContext):
-        pass
-
-    # Exit a parse tree produced by SQLGrammarParser#columns.
-    def exitColumns(self, ctx: SQLGrammarParser.ColumnsContext):
-        pass
-
-    # Enter a parse tree produced by SQLGrammarParser#data_type.
-    def enterData_type(self, ctx: SQLGrammarParser.Data_typeContext):
-        pass
-
-    # Exit a parse tree produced by SQLGrammarParser#data_type.
-    def exitData_type(self, ctx: SQLGrammarParser.Data_typeContext):
-        pass
-
-    # Enter a parse tree produced by SQLGrammarParser#value.
-    def enterValue(self, ctx: SQLGrammarParser.ValueContext):
-        pass
-
-    # Exit a parse tree produced by SQLGrammarParser#value.
-    def exitValue(self, ctx: SQLGrammarParser.ValueContext):
-        pass
 
 
 del SQLGrammarParser
