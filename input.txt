@@ -1,7 +1,20 @@
-CREATE TABLE table_1 (col_1 int, col_2 string, col_3 string);
-INSERT INTO table_1 VALUES (123,'abc', 'bb');
-INSERT INTO table_1 VALUES (223,'abc', 'bb');
-SELECT col_1, col_3 FROM table_1;
-SELECT * FROM table_1;
-SELECT col_1, col_2 FROM table_1 WHERE col_1=123;
-SELECT * FROM table_1 WHERE col_1=223;
+SHOW TABLES;
+
+CREATE TABLE birds (type string, count int);
+SHOW TABLES;
+
+INSERT INTO birds VALUES ('robin', 10);
+INSERT INTO birds VALUES ('pigeon', 10);
+INSERT INTO birds VALUES ('crow', 145);
+INSERT INTO birds VALUES ('owl', 23);
+
+SELECT * FROM birds;
+SELECT type FROM birds;
+SELECT * FROM birds WHERE count=10;
+SELECT count FROM birds WHERE type='owl';
+
+CREATE TABLE dinosaurs (type string, count int);
+SHOW TABLES;
+
+DROP TABLE dinosaurs;
+SHOW TABLES;

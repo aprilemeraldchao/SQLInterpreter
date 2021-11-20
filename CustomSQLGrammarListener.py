@@ -1,5 +1,6 @@
 # Generated from SQLGrammar.g4 by ANTLR 4.9
 from antlr4 import *
+from tabulate import tabulate
 from SQLGrammarListener import SQLGrammarListener
 
 if __name__ is not None and "." in __name__:
@@ -12,23 +13,49 @@ class CustomSQLGrammarListener(SQLGrammarListener):
     class Table:
         def __init__(self, name, cols):
             self.name = name
-            self.colDefs = cols  # array filled with tuples, which are of size=2 (colName, colType)
-            self.rows = []  # contains arrays of same size, each with same number of elements
 
-        def insert(self, values):
-            self.rows.append(values)
-            # values = an array of tuples, which are of size=1, representing each column value
+            # array filled with tuples, which are of size=2 (col_name, col_type)
+            self.col_defs = cols
+
+            # contains arrays of same size (the number of columns in this array)
+            self.rows = []
+
+        def insert(self, row):
+            # row = an array of column values
+            self.rows.append(row)
+
+        def display(self, col_indices, filter_index, filter_val):
+            # contains all rows that should be displayed
+            display_rows = []
+            for row in self.rows:
+                # skip rows that don't match the where condition
+                if filter_index >= 0 and row[filter_index] != filter_val:
+                    continue
+
+                # add only the queried columns
+                display_rows.append([row[index] for index in col_indices])
+
+            # get column headers
+            display_headers = [self.col_defs[index][0] for index in col_indices]
+
+            # print queried columns and rows with tabulate module
+            print(
+                tabulate(
+                    display_rows,
+                    headers=display_headers,
+                    tablefmt="fancy_grid",
+                    numalign="left",
+                )
+            )
 
         def __str__(self):
             toStr = "Table: " + self.name + "\n"
-            toStr += "\t".join([colDef[0] for colDef in self.colDefs]) + "\n"
-            toStr += (
-                "\t".join(["(" + colDef[1] + ")" for colDef in self.colDefs]) + "\n"
+            toStr += tabulate(
+                [[col_def[1] for col_def in self.col_defs]],
+                headers=[col_def[0] for col_def in self.col_defs],
+                tablefmt="fancy_grid",
+                numalign="left",
             )
-            for row in self.rows:
-                for value in row:
-                    toStr += value + "\t"
-                toStr += "\n"
             return toStr
 
     def __init__(self):
@@ -64,14 +91,18 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
     # Exit a parse tree produced by SQLGrammarParser#create.
     def exitCreate(self, ctx: SQLGrammarParser.CreateContext):
-        tableName = ctx.NAME().getText()
-        cols = []
-        for colDef in ctx.column_definition():
-            colName = colDef.NAME().getText()
-            colType = "string" if colDef.data_type().STRING() else "int"
-            cols.append((colName, colType))
-        self.tables[tableName] = self.Table(tableName, cols)
+        # get table name from query
+        table_name = ctx.NAME().getText()
 
+        # get column definitions from query
+        cols = []
+        for col_def in ctx.column_definition():
+            col_name = col_def.NAME().getText()
+            col_type = "string" if col_def.data_type().STRING() else "int"
+            cols.append((col_name, col_type))
+
+        # create and add table to tables dictionary
+        self.tables[table_name] = self.Table(table_name, cols)
 
     # Enter a parse tree produced by SQLGrammarParser#drop.
     def enterDrop(self, ctx: SQLGrammarParser.DropContext):
@@ -79,9 +110,11 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
     # Exit a parse tree produced by SQLGrammarParser#drop.
     def exitDrop(self, ctx: SQLGrammarParser.DropContext):
-        tableName = ctx.NAME().getText()
-        self.tables.pop(tableName)
-        print(">Dropped", tableName, "Table\n")
+        # get table name from query
+        table_name = ctx.NAME().getText()
+
+        # remove table from tables dictionary
+        self.tables.pop(table_name)
 
     # Enter a parse tree produced by SQLGrammarParser#insert.
     def enterInsert(self, ctx: SQLGrammarParser.InsertContext):
@@ -89,17 +122,20 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
     # Exit a parse tree produced by SQLGrammarParser#insert.
     def exitInsert(self, ctx: SQLGrammarParser.InsertContext):
-        tableName = ctx.NAME().getText()
-        values = []
+        # get table name from query
+        table_name = ctx.NAME().getText()
+
+        # get row values
+        row = []
         for value in ctx.value():
-            val = (
+            row.append(
                 value.STRING_VALUE().getText()
                 if value.STRING_VALUE()
                 else value.INT_VALUE().getText()
             )
-            values.append(val)
-        # TBD check if values match col defs
-        self.tables[tableName].insert(values)
+
+        # insert the row into the table
+        self.tables[table_name].insert(row)
 
     # Enter a parse tree produced by SQLGrammarParser#show.
     def enterShow(self, ctx: SQLGrammarParser.ShowContext):
@@ -108,10 +144,13 @@ class CustomSQLGrammarListener(SQLGrammarListener):
     # Exit a parse tree produced by SQLGrammarParser#show.
     def exitShow(self, ctx: SQLGrammarParser.ShowContext):
         if len(self.tables) == 0:
-            print("No tables")
-            print()
+            # if no tables exist yet
+            print("No tables\n")
+
+        # else print every table that does exist
         for table in self.tables.values():
             print(table)
+            print()
 
     # Enter a parse tree produced by SQLGrammarParser#select.
     def enterSelect(self, ctx: SQLGrammarParser.SelectContext):
@@ -119,98 +158,65 @@ class CustomSQLGrammarListener(SQLGrammarListener):
 
     # Exit a parse tree produced by SQLGrammarParser#select.
     def exitSelect(self, ctx: SQLGrammarParser.SelectContext):
-        # print("\nEntered SELECT\n")
+        # this array will always have at most 2 items: 1. table_name, 2. filter_column
+        table_column_names = ctx.NAME()
 
-        # working fine
-        table_column_names = [] # this'd stores the column names for case 3 as well
-        # this array will always have 2 items: 1. table_name, 2. filter_column
-        for name in ctx.NAME():
-            table_column_names.append(name)
+        # get table name from query
+        table_name = table_column_names[0]
 
-        table_name = table_column_names[0]  # working fine
-
-        '''
-        3 cases: 
-        1. SELECT col1, col2, ...
-        2. SELECT * ... ==> if len(query_column_names) == 1 and 
-        3. SELECT col1, col2 FROM table_name WHERE col1=value
-        '''
-
-
-
-        # got the table name
-        # Now, want the column names from the select query
+        # get query column names from query
         query_column_names = []
         if ctx.columns().NAME():
-            for name in ctx.columns().NAME():
-                col_name = name.getText()
-                query_column_names.append(col_name)
+            # if column names were supplied, add those
+            for col_name in ctx.columns().NAME():
+                query_column_names.append(col_name.getText())
         else:
+            # else a '*' was supplied so add that
             query_column_names.append(ctx.columns().STAR().getText())
-            # query_column_names.append("*")
 
-        '''
-        for name in ctx.columns().NAME():
-            col_name = name.getText()
-            query_column_names.append(col_name)
-        '''
-
-        # print the column names in the query
-        x = "Query columns: "
-        x += "\t".join([column for column in query_column_names])
-        print(x) # column names being printed
-
-        # need to get the data for these query_column_names
+        # get the table object for this query
         table_object = self.tables[table_name.getText()]
 
-        # find the tuple indices of the column names given in the colDefs array
-        # so, we can use that indices tho print specific tuple in the arrays of self.rows
+        # initialize variables for displaying the query
+        col_indices = []  # indices of the columns to display
+        filter_index = -1  # index of the column from the WHERE clause
+        filter_val = None  # expected value from the WHERE clause
 
-        '''
-        Case #1  SELECT col1, col2, ...
-        This means that the query_column_names is not size=1 (i.e., it's not just a star), 
-        AND the table_column_names is size=1 (i.e., there is not a WHERE clause at the end)
-        '''
+        # populate the column indices and set the filter index
+        query_col_index = 0  # index of the current query column we are looking for in the table's columns
 
-        col_indices = []
-        where_index = None
-
-        query_col_index = 0
-        for table_col_index, (c_name, c_type) in enumerate(table_object.colDefs):
-            if query_column_names[0] == '*' or (query_col_index < len(query_column_names) and c_name == query_column_names[query_col_index]):
+        # loop over all column definitions in the table
+        for table_col_index, (c_name, _) in enumerate(table_object.col_defs):
+            # if the query is for all columns or we found the query column
+            if query_column_names[0] == "*" or (
+                query_col_index < len(query_column_names)
+                and c_name == query_column_names[query_col_index]
+            ):
+                # add the index of the column to display
                 col_indices.append(table_col_index)
+
+                # increment to the next query column to look for
                 query_col_index += 1
 
-            if len(table_column_names) > 1 and c_name == table_column_names[1].getText():
-                where_index = table_col_index
+            # if we found the column from the WHERE clause, set the filter index
+            if (
+                len(table_column_names) > 1
+                and c_name == table_column_names[1].getText()
+            ):
+                filter_index = table_col_index
 
+        # if the filter index was set
+        if filter_index >= 0:
+            # get the expected value
+            filter_val = (
+                ctx.value().STRING_VALUE().getText()
+                if ctx.value().STRING_VALUE()
+                else ctx.value().INT_VALUE().getText()
+            )
 
-        # use the indices in col_indices to access specific tuple in arrays of self.rows
-        for row in table_object.rows:
-            # check if there's a where clause, then check if where clause is true
-            if len(table_column_names) > 1:
-                if ctx.value().STRING_VALUE():
-                    value = ctx.value().STRING_VALUE().getText()
-                else:
-                    value = ctx.value().INT_VALUE().getText()
-
-                if row[where_index] != value:
-                    continue
-
-            x = ""
-            for index in col_indices:
-                x += row[index] + '\t'
-            print(x)   # specific row data print working
-
-
-
-
-
+        # display the filtered table
+        table_object.display(col_indices, filter_index, filter_val)
         print()
-
-
-
-
 
     # Enter a parse tree produced by SQLGrammarParser#column_definition.
     def enterColumn_definition(self, ctx: SQLGrammarParser.Column_definitionContext):
