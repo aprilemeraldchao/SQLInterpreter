@@ -47,3 +47,7 @@
     INSERT INTO table_1 VALUES (123,'abc');
     ```
 5. To close the tester, press ``control+D``.
+
+## Running the Program
+1. Input SQL statements in ``input.txt``.
+2. Run ``main.py``.
